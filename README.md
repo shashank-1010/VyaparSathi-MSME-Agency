@@ -1,4 +1,4 @@
-# VyaparSathi — Premium AI Automation Agency Website
+# Vexa — Premium AI Automation Agency Website
 
 A full-stack web application for an AI automation agency targeting Indian MSMEs.
 

@@ -1,736 +1,1118 @@
-import { motion, useScroll, useTransform } from 'framer-motion'
-import { ArrowRight, Check, Zap, ChevronRight } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import Navbar from '../components/layout/Navbar'
+import Footer from '../components/layout/Footer'
 
-// ─── Color System ────────────────────────────────────────────────────────────
-// Primary:   #0A0A0A  (near-black for text)
-// Accent:    #1A6BFF  (electric blue)
-// Surface:   #F5F7FA  (cool off-white)
-// Border:    #E4E8EF  (soft border)
-// Muted:     #6C7A8D  (secondary text)
-// Highlight: #EEF3FF  (blue tint bg)
+// ─── Exact Wix Color & Font System (from index.html) ─────────────────────────
+// bg primary:    #ffffff   (white)
+// bg secondary:  #f4f4f4   (light gray — color_12)
+// accent blue:   #166aea   (Wix blue — color_18)
+// text dark:     #000000   / #1c1d21
+// text muted:    #a7a8a8
+// border:        #eaeaea
+// card blue:     #8fa3ff   (color_28)
+// card green:    #d1e6d1   (color_23)
+// card orange:   #faa85e   (color_33)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Canvas: Precision Grid + Drifting Nodes ────────────────────────────────
-function PrecisionCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+const WIX_FONT = "'madefor-display', 'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+const WIX_BODY = "'madefor-text', 'Helvetica Neue', Helvetica, Arial, sans-serif"
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    let animFrame: number
-    let t = 0
-
-    const resize = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    // Node system
-    const W = () => canvas.offsetWidth
-    const H = () => canvas.offsetHeight
-
-    interface Node { x: number; y: number; vx: number; vy: number; r: number }
-    const nodes: Node[] = Array.from({ length: 28 }, () => ({
-      x: Math.random() * W(),
-      y: Math.random() * H(),
-      vx: (Math.random() - 0.5) * 0.18,
-      vy: (Math.random() - 0.5) * 0.18,
-      r: Math.random() * 2 + 1.5,
-    }))
-
-    const draw = () => {
-      ctx.clearRect(0, 0, W(), H())
-      t += 0.008
-
-      // Subtle dot grid
-      const gridGap = 38
-      ctx.fillStyle = 'rgba(100,130,200,0.07)'
-      for (let gx = 0; gx < W(); gx += gridGap) {
-        for (let gy = 0; gy < H(); gy += gridGap) {
-          ctx.beginPath()
-          ctx.arc(gx, gy, 1, 0, Math.PI * 2)
-          ctx.fill()
-        }
-      }
-
-      // Update nodes
-      nodes.forEach((n) => {
-        n.x += n.vx
-        n.y += n.vy
-        if (n.x < 0 || n.x > W()) n.vx *= -1
-        if (n.y < 0 || n.y > H()) n.vy *= -1
-      })
-
-      // Draw connections
-      nodes.forEach((a, i) => {
-        nodes.slice(i + 1).forEach((b) => {
-          const d = Math.hypot(a.x - b.x, a.y - b.y)
-          if (d < 160) {
-            ctx.beginPath()
-            ctx.moveTo(a.x, a.y)
-            ctx.lineTo(b.x, b.y)
-            ctx.strokeStyle = `rgba(26,107,255,${(1 - d / 160) * 0.10})`
-            ctx.lineWidth = 0.8
-            ctx.stroke()
-          }
-        })
-      })
-
-      // Draw nodes
-      nodes.forEach((n) => {
-        ctx.beginPath()
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(26,107,255,0.22)'
-        ctx.fill()
-      })
-
-      // Floating accent ring (top-right)
-      const rx = W() * 0.82, ry = H() * 0.28
-      ctx.beginPath()
-      ctx.arc(rx, ry, 80 + Math.sin(t * 0.7) * 6, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(26,107,255,0.07)'
-      ctx.lineWidth = 1.2
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.arc(rx, ry, 52 + Math.sin(t * 0.9) * 4, 0, Math.PI * 2)
-      ctx.strokeStyle = 'rgba(26,107,255,0.05)'
-      ctx.lineWidth = 0.8
-      ctx.stroke()
-
-      animFrame = requestAnimationFrame(draw)
-    }
-    draw()
-    return () => {
-      cancelAnimationFrame(animFrame)
-      window.removeEventListener('resize', resize)
-    }
-  }, [])
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-    />
-  )
+// ── Shared style objects ──────────────────────────────────────────────────────
+const labelSt: React.CSSProperties = {
+  fontFamily: WIX_FONT,
+  fontSize: 14,
+  fontWeight: 700,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase' as const,
+  color: '#1c1d21',
+  marginBottom: 8,
 }
 
-// ── Canvas: Soft Wave Separator ────────────────────────────────────────────
-function WaveCanvas({ color = 'rgba(26,107,255,0.05)', height = 80 }: { color?: string; height?: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    let animFrame: number
-    let t = 0
-
-    const resize = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    const W = () => canvas.offsetWidth
-    const H = () => canvas.offsetHeight
-
-    const draw = () => {
-      ctx.clearRect(0, 0, W(), H())
-      t += 0.012
-      ctx.beginPath()
-      ctx.moveTo(0, H())
-      for (let x = 0; x <= W(); x += 4) {
-        const y = H() * 0.5 + Math.sin(x * 0.012 + t) * (H() * 0.22) + Math.sin(x * 0.02 + t * 1.4) * (H() * 0.1)
-        ctx.lineTo(x, y)
-      }
-      ctx.lineTo(W(), H())
-      ctx.closePath()
-      ctx.fillStyle = color
-      ctx.fill()
-      animFrame = requestAnimationFrame(draw)
-    }
-    draw()
-    return () => {
-      cancelAnimationFrame(animFrame)
-      window.removeEventListener('resize', resize)
-    }
-  }, [color])
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: `${height}px`, pointerEvents: 'none' }}
-    />
-  )
+const h1St: React.CSSProperties = {
+  fontFamily: WIX_FONT,
+  fontSize: 'clamp(40px,7.3vw,140px)',
+  fontWeight: 700,
+  lineHeight: 1.0,
+  letterSpacing: '-0.01em',
+  color: '#000',
 }
 
-// ── Canvas: Stats pulse ────────────────────────────────────────────────────
-function PulseCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    let animFrame: number
-    let t = 0
-
-    const resize = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-    }
-    resize()
-    window.addEventListener('resize', resize)
-    const W = () => canvas.offsetWidth
-    const H = () => canvas.offsetHeight
-
-    const draw = () => {
-      ctx.clearRect(0, 0, W(), H())
-      t += 0.01
-      // Horizontal shimmer lines
-      for (let i = 0; i < 4; i++) {
-        const y = (H() / 4) * i + H() / 8
-        const alpha = (Math.sin(t + i * 1.2) + 1) / 2 * 0.06
-        ctx.beginPath()
-        ctx.moveTo(0, y)
-        ctx.lineTo(W(), y)
-        ctx.strokeStyle = `rgba(26,107,255,${alpha})`
-        ctx.lineWidth = 1
-        ctx.stroke()
-      }
-      animFrame = requestAnimationFrame(draw)
-    }
-    draw()
-    return () => { cancelAnimationFrame(animFrame); window.removeEventListener('resize', resize) }
-  }, [])
-  return <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />
+const h2St: React.CSSProperties = {
+  fontFamily: WIX_FONT,
+  fontSize: 'clamp(28px,5vw,96px)',
+  fontWeight: 700,
+  lineHeight: 1.1,
+  letterSpacing: '-0.01em',
+  color: '#000',
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────
-const services = [
-  { title: 'WhatsApp Automation', tag: 'Most Popular', desc: 'Auto replies, bookings, payment links & daily reports — all on WhatsApp.', num: '01' },
-  { title: 'AI Business Agents', tag: null, desc: 'Custom AI that qualifies leads, manages orders, and syncs with Google Sheets.', num: '02' },
-  { title: 'Website Development', tag: null, desc: 'Fast, mobile-first business websites built to convert visitors into customers.', num: '03' },
-  { title: 'AI Customer Support', tag: null, desc: '24/7 AI support across all platforms with response times under 5 seconds.', num: '04' },
-  { title: 'Inventory & Udhar', tag: null, desc: 'Smart stock tracking with automated credit management and reminders.', num: '05' },
-  { title: 'Digital Branding', tag: null, desc: 'Logo, Google Business, social profiles, and 20+ post templates.', num: '06' },
-]
+const h3St: React.CSSProperties = {
+  fontFamily: WIX_FONT,
+  fontSize: 'clamp(20px,2.9vw,56px)',
+  fontWeight: 700,
+  lineHeight: 1.2,
+  color: '#000',
+}
 
-const stats = [
-  { value: '200+', label: 'Businesses Served' },
-  { value: '₹2Cr+', label: 'Revenue Generated' },
-  { value: '48hrs', label: 'Avg. Setup Time' },
-  { value: '95%', label: 'Client Retention' },
-]
+const bodySt: React.CSSProperties = {
+  fontFamily: WIX_BODY,
+  fontSize: 'clamp(16px,1.25vw,24px)',
+  color: '#1c1d21',
+  lineHeight: 1.6,
+}
 
-const steps = [
-  { num: '01', title: 'Tell us about your business', desc: 'Share what you do and what tasks eat up most of your day.' },
-  { num: '02', title: 'We build your automation', desc: 'Our team configures AI workflows tailored to your exact business needs.' },
-  { num: '03', title: 'Go live in 48 hours', desc: 'Your automations are deployed and running — no technical knowledge required.' },
-  { num: '04', title: 'Scale with confidence', desc: 'Get reports, insights, and ongoing support as your business grows.' },
-]
+const bodySmSt: React.CSSProperties = {
+  fontFamily: WIX_BODY,
+  fontSize: 'clamp(14px,1.04vw,20px)',
+  color: '#1c1d21',
+  lineHeight: 1.6,
+}
 
-const features = [
-  'Hindi + English multilingual support',
-  'WhatsApp-first (where your customers already are)',
-  'UPI & payment reminder automation',
-  'Udhar (credit) management built-in',
-  'Setup by our team — zero tech knowledge needed',
-]
+// Black pill button (primary CTAs — "Get Free Demo")
+const btnBlack: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0 24px',
+  height: 54,
+  background: '#000',
+  color: '#fff',
+  fontFamily: WIX_BODY,
+  fontWeight: 400,
+  fontSize: 'clamp(14px,0.94vw,18px)',
+  borderRadius: 100,
+  textDecoration: 'none',
+  cursor: 'pointer',
+  transition: 'background 0.2s',
+  whiteSpace: 'nowrap' as const,
+  border: 'none',
+}
+
+// Blue pill button ("Go to Help Center")
+const btnBlueSt: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0 24px',
+  height: 54,
+  background: '#166aea',
+  color: '#fff',
+  fontFamily: WIX_BODY,
+  fontWeight: 400,
+  fontSize: 'clamp(14px,0.94vw,18px)',
+  borderRadius: 100,
+  textDecoration: 'none',
+  cursor: 'pointer',
+  transition: 'background 0.2s',
+  whiteSpace: 'nowrap' as const,
+  border: 'none',
+}
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 22 },
   whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: '-60px' },
-  transition: { duration: 0.58, delay, ease: [0.22, 1, 0.36, 1] },
+  viewport: { once: true, margin: '-48px' },
+  transition: { duration: 0.55, delay, ease: [0.22, 1, 0.36, 1] },
 })
 
-export default function Home() {
+// ── Sparkle SVG (Wix AI sparkle icon) ────────────────────────────────────────
+function Sparkle({ size = 20, color = '#fff' }: { size?: number; color?: string }) {
   return (
-    <main
-      className="overflow-hidden bg-white"
-      style={{ fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif" }}
-    >
-      {/* ── HERO ──────────────────────────────────────────────────── */}
-      <section
-        className="relative bg-white pt-32 pb-32 px-6 overflow-hidden"
-        style={{ minHeight: '92vh', display: 'flex', alignItems: 'center' }}
-      >
-        <PrecisionCanvas />
+    <svg width={size} height={size} viewBox="0 0 25 25" fill="none" style={{ flexShrink: 0 }}>
+      <path
+        d="M19.974 0c.328 0 .611.232.675.554l.149.742a3.444 3.444 0 0 0 2.701 2.701l.743.149a.689.689 0 0 1 0 1.35l-.743.15a3.444 3.444 0 0 0-2.701 2.7l-.148.743a.689.689 0 0 1-1.351 0l-.149-.742a3.444 3.444 0 0 0-2.701-2.702l-.743-.148a.689.689 0 0 1 0-1.351l.743-.149a3.444 3.444 0 0 0 2.7-2.701L19.3.554A.689.689 0 0 1 19.974 0ZM8.455 4.576a.804.804 0 0 1 .79.649l.35 1.74a8.066 8.066 0 0 0 6.33 6.33l1.74.35a.804.804 0 0 1 0 1.578l-1.74.35a8.066 8.066 0 0 0-6.33 6.33l-.35 1.74a.804.804 0 0 1-1.578 0l-.35-1.74a8.066 8.066 0 0 0-6.33-6.33l-1.74-.35a.804.804 0 0 1 0-1.578l1.74-.35a8.066 8.066 0 0 0 6.33-6.33l.35-1.74a.804.804 0 0 1 .788-.649Z"
+        fill={color}
+      />
+    </svg>
+  )
+}
 
-        {/* Top accent line */}
-        <div
-          style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-            background: 'linear-gradient(90deg, transparent 0%, #1A6BFF 30%, #1A6BFF 70%, transparent 100%)',
-            opacity: 0.7,
-          }}
-        />
-
-        <div className="relative max-w-5xl mx-auto w-full">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            {/* Left */}
-            <div>
-              <motion.div
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="inline-flex items-center gap-2 mb-7"
-                style={{
-                  background: '#EEF3FF', border: '1px solid #C7D9FF',
-                  borderRadius: '100px', padding: '6px 14px',
-                }}
-              >
-                <span
-                  style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: '#1A6BFF', display: 'inline-block',
-                    boxShadow: '0 0 0 3px rgba(26,107,255,0.2)',
-                  }}
-                />
-                <span style={{ fontSize: 12, fontWeight: 600, color: '#1A6BFF', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                  AI Automation for Indian MSMEs
-                </span>
-              </motion.div>
-
-              <motion.h1
-                initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.65, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-                style={{
-                  fontSize: 'clamp(36px, 5.5vw, 58px)',
-                  fontWeight: 800,
-                  lineHeight: 1.06,
-                  letterSpacing: '-0.03em',
-                  color: '#0A0A0A',
-                  marginBottom: 20,
-                }}
-              >
-                Your business<br />runs itself.{' '}
-                <span style={{ color: '#1A6BFF' }}>You<br />focus on growth.</span>
-              </motion.h1>
-
-              <motion.p
-                initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.16 }}
-                style={{ fontSize: 17, color: '#4B5A6B', lineHeight: 1.7, maxWidth: 440, marginBottom: 36 }}
-              >
-                VyaparSathi automates WhatsApp, customer support, inventory, and more —
-                built specifically for Indian MSMEs.
-              </motion.p>
-
-              <motion.div
-                initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.55, delay: 0.22 }}
-                className="flex flex-wrap gap-3 items-center"
-              >
-                <Link
-                  to="/contact"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '14px 28px', background: '#0A0A0A', color: '#fff',
-                    fontWeight: 700, borderRadius: 100, fontSize: 15,
-                    textDecoration: 'none', transition: 'background 0.2s',
-                    border: '1px solid #0A0A0A',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#1A6BFF')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#0A0A0A')}
-                >
-                  Get Free Demo <ArrowRight size={15} />
-                </Link>
-                <Link
-                  to="/services"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '14px 28px', background: 'transparent', color: '#0A0A0A',
-                    fontWeight: 600, borderRadius: 100, fontSize: 15,
-                    textDecoration: 'none', border: '1.5px solid #E4E8EF',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#0A0A0A')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#E4E8EF')}
-                >
-                  See All Services
-                </Link>
-              </motion.div>
-
-              <motion.p
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                transition={{ delay: 0.32 }}
-                style={{ marginTop: 18, fontSize: 13, color: '#8A97A6' }}
-              >
-                No credit card · Setup in 48 hrs · Cancel anytime
-              </motion.p>
-            </div>
-
-            {/* Right — live status card */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.7, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
-              style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-            >
-              {[
-                { label: 'WhatsApp Automation', sub: 'Auto-replies active', color: '#00C566' },
-                { label: 'AI Customer Support', sub: '147 queries handled today', color: '#1A6BFF' },
-                { label: 'Inventory Tracking', sub: 'Stock alerts sent: 12', color: '#F5820D' },
-                { label: 'Udhar Management', sub: '₹84,200 recovered this week', color: '#8B5CF6' },
-              ].map((item, i) => (
-                <motion.div
-                  key={item.label}
-                  initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 + i * 0.1 }}
-                  style={{
-                    background: '#fff', border: '1px solid #E4E8EF',
-                    borderRadius: 16, padding: '16px 20px',
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-                  }}
-                >
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: item.color + '14',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.color, display: 'inline-block' }} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#0A0A0A' }}>{item.label}</div>
-                    <div style={{ fontSize: 12, color: '#8A97A6', marginTop: 2 }}>{item.sub}</div>
-                  </div>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700, color: item.color,
-                    background: item.color + '12', padding: '3px 10px', borderRadius: 100,
-                    letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0,
-                  }}>Live</span>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-        <WaveCanvas color="rgba(26,107,255,0.04)" height={90} />
-      </section>
-
-      {/* ── STATS STRIP ───────────────────────────────────────────── */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: '#F5F7FA', borderTop: '1px solid #E4E8EF', borderBottom: '1px solid #E4E8EF', padding: '52px 24px' }}
-      >
-        <PulseCanvas />
-        <div className="relative max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
-          {stats.map((s, i) => (
-            <motion.div key={s.label} {...fadeUp(i * 0.07)}>
-              <div style={{ fontSize: 'clamp(32px, 4vw, 44px)', fontWeight: 800, letterSpacing: '-0.03em', color: '#0A0A0A', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 13, color: '#6C7A8D', fontWeight: 500, marginTop: 6 }}>{s.label}</div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── SERVICES GRID ─────────────────────────────────────────── */}
-      <section style={{ background: '#fff', padding: 'clamp(60px,8vw,96px) 24px' }}>
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center" style={{ marginBottom: 56 }}>
-            <motion.p {...fadeUp(0)} style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#1A6BFF', marginBottom: 12 }}>
-              What We Offer
-            </motion.p>
-            <motion.h2
-              {...fadeUp(0.06)}
-              style={{ fontSize: 'clamp(30px, 4.5vw, 48px)', fontWeight: 800, lineHeight: 1.08, letterSpacing: '-0.025em', color: '#0A0A0A' }}
-            >
-              Everything your business needs.<br />
-              <span style={{ color: '#6C7A8D', fontWeight: 500 }}>In one place.</span>
-            </motion.h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {services.map((s, i) => (
-              <motion.div
-                key={s.title}
-                {...fadeUp(i * 0.07)}
-                style={{
-                  background: '#fff', border: '1px solid #E4E8EF',
-                  borderRadius: 20, padding: '28px 28px 24px',
-                  cursor: 'pointer', transition: 'border-color 0.2s, box-shadow 0.2s',
-                  position: 'relative', overflow: 'hidden',
-                }}
-                whileHover={{ y: -3, boxShadow: '0 12px 32px rgba(26,107,255,0.10)', borderColor: '#C7D9FF' }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#C5CDD8', letterSpacing: '0.1em' }}>{s.num}</span>
-                  {s.tag && (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                      color: '#1A6BFF', background: '#EEF3FF', padding: '4px 10px', borderRadius: 100, border: '1px solid #C7D9FF',
-                    }}>{s.tag}</span>
-                  )}
-                </div>
-                <h3 style={{ fontSize: 17, fontWeight: 700, color: '#0A0A0A', marginBottom: 8, letterSpacing: '-0.01em' }}>{s.title}</h3>
-                <p style={{ fontSize: 14, color: '#6C7A8D', lineHeight: 1.65 }}>{s.desc}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 18, fontSize: 13, fontWeight: 600, color: '#1A6BFF' }}>
-                  Learn more <ChevronRight size={13} />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          <div className="text-center" style={{ marginTop: 44 }}>
-            <Link
-              to="/services"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '14px 32px', background: '#0A0A0A', color: '#fff',
-                fontWeight: 700, borderRadius: 100, fontSize: 15, textDecoration: 'none',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#1A6BFF')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#0A0A0A')}
-            >
-              View All Services <ArrowRight size={15} />
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── HOW IT WORKS ──────────────────────────────────────────── */}
-      <section
+// ── FAQ Accordion Item (Wix-style) ────────────────────────────────────────────
+function FAQItem({ q, a }: { q: string; a: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ borderBottom: '1px solid #eaeaea' }}>
+      <div
+        onClick={() => setOpen(!open)}
         style={{
-          background: '#F5F7FA', borderTop: '1px solid #E4E8EF',
-          padding: 'clamp(60px,8vw,96px) 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '24px 0',
+          gap: 16,
+          cursor: 'pointer',
         }}
       >
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center" style={{ marginBottom: 56 }}>
-            <motion.p {...fadeUp(0)} style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#1A6BFF', marginBottom: 12 }}>
-              How It Works
-            </motion.p>
-            <motion.h2
-              {...fadeUp(0.06)}
-              style={{ fontSize: 'clamp(28px, 4vw, 46px)', fontWeight: 800, lineHeight: 1.08, letterSpacing: '-0.025em', color: '#0A0A0A' }}
-            >
-              From setup to automation<br />
-              <span style={{ color: '#6C7A8D', fontWeight: 500 }}>in 4 simple steps.</span>
-            </motion.h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {steps.map((step, i) => (
-              <motion.div
-                key={step.num}
-                {...fadeUp(i * 0.1)}
-                style={{
-                  background: '#fff', border: '1px solid #E4E8EF',
-                  borderRadius: 20, padding: '32px',
-                  transition: 'box-shadow 0.2s',
-                  position: 'relative', overflow: 'hidden',
-                }}
-                whileHover={{ boxShadow: '0 8px 24px rgba(0,0,0,0.07)' }}
-              >
-                {/* Step number watermark */}
-                <div style={{
-                  position: 'absolute', top: -8, right: 16,
-                  fontSize: 80, fontWeight: 900, color: '#F0F3F8',
-                  lineHeight: 1, letterSpacing: '-0.05em', userSelect: 'none',
-                }}>{step.num}</div>
-                <div style={{ position: 'relative' }}>
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: 36, height: 36, background: '#EEF3FF', borderRadius: 10,
-                    marginBottom: 16,
-                  }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: '#1A6BFF' }}>{step.num}</span>
-                  </div>
-                  <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0A0A0A', marginBottom: 8, letterSpacing: '-0.01em' }}>{step.title}</h3>
-                  <p style={{ fontSize: 14, color: '#6C7A8D', lineHeight: 1.65 }}>{step.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── WHY US ────────────────────────────────────────────────── */}
-      <section style={{ background: '#fff', borderTop: '1px solid #E4E8EF', padding: 'clamp(60px,8vw,96px) 24px' }}>
-        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <motion.p {...fadeUp(0)} style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#1A6BFF', marginBottom: 14 }}>
-              Why VyaparSathi
-            </motion.p>
-            <motion.h2
-              {...fadeUp(0.06)}
-              style={{ fontSize: 'clamp(26px, 3.8vw, 42px)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.025em', color: '#0A0A0A', marginBottom: 18 }}
-            >
-              Built for Indian business.<br />
-              <span style={{ color: '#6C7A8D', fontWeight: 500 }}>Not just any business.</span>
-            </motion.h2>
-            <motion.p
-              {...fadeUp(0.1)}
-              style={{ fontSize: 16, color: '#4B5A6B', lineHeight: 1.7, marginBottom: 28 }}
-            >
-              We understand Udhar, Hindi, UPI, and the specific workflows of Indian MSMEs.
-              Every feature is designed for how you actually work.
-            </motion.p>
-
-            <motion.div {...fadeUp(0.14)} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {features.map((f) => (
-                <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: '50%', background: '#0A0A0A',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  }}>
-                    <Check size={12} color="#fff" strokeWidth={3} />
-                  </div>
-                  <span style={{ fontSize: 14, color: '#2D3748', fontWeight: 500 }}>{f}</span>
-                </div>
-              ))}
-            </motion.div>
-
-            <motion.div {...fadeUp(0.2)} style={{ marginTop: 36 }}>
-              <Link
-                to="/contact"
-                style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                  padding: '14px 28px', background: '#0A0A0A', color: '#fff',
-                  fontWeight: 700, borderRadius: 100, fontSize: 15, textDecoration: 'none',
-                  transition: 'background 0.2s',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#1A6BFF')}
-                onMouseLeave={e => (e.currentTarget.style.background = '#0A0A0A')}
-              >
-                Book Free Consultation <ArrowRight size={15} />
-              </Link>
-            </motion.div>
-          </div>
-
-          {/* Feature status panel */}
+        <span style={{
+          fontFamily: WIX_FONT,
+          fontSize: 'clamp(16px,1.67vw,32px)',
+          fontWeight: 700,
+          color: '#000',
+          lineHeight: 1.3,
+        }}>{q}</span>
+        <motion.div
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.22 }}
+          style={{
+            flexShrink: 0,
+            width: 32, height: 32,
+            borderRadius: '50%',
+            border: '1.5px solid #000',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <ChevronDown size={16} color="#000" />
+        </motion.div>
+      </div>
+      <AnimatePresence>
+        {open && (
           <motion.div
-            {...fadeUp(0.08)}
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div style={{ ...bodySmSt, paddingBottom: 28, maxWidth: 900 }}>{a}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ── Video Section Tab (expandable accordion like Wix) ─────────────────────────
+function VideoTab({
+  num,
+  title,
+  desc,
+  open,
+  onClick,
+}: {
+  num: string
+  title: string
+  desc: string
+  open: boolean
+  onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{ borderBottom: '1px solid #d0d0d0', cursor: 'pointer' }}
+    >
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '20px 0',
+        gap: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <span style={{
+            fontFamily: WIX_FONT,
+            fontSize: 'clamp(24px,2.08vw,40px)',
+            fontWeight: 700,
+            color: open ? '#000' : '#a7a8a8',
+            minWidth: 36,
+            transition: 'color 0.2s',
+          }}>{num}.</span>
+          <span style={{
+            fontFamily: WIX_FONT,
+            fontSize: 'clamp(16px,1.25vw,24px)',
+            fontWeight: 700,
+            color: open ? '#000' : '#a7a8a8',
+            transition: 'color 0.2s',
+          }}>{title}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {!open && (
+            <span style={{ fontFamily: WIX_BODY, fontSize: 13, fontWeight: 700, color: '#166aea', textDecoration: 'underline' }}>
+              Show more
+            </span>
+          )}
+          <motion.div
+            animate={{ rotate: open ? 180 : 0 }}
+            transition={{ duration: 0.22 }}
             style={{
-              background: '#F5F7FA', borderRadius: 24, border: '1px solid #E4E8EF', padding: 28,
+              width: 32, height: 32, borderRadius: '50%',
+              border: '1.5px solid #000',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#6C7A8D', letterSpacing: '0.1em', textTransform: 'uppercase' }}>System Status</span>
-              <span style={{
-                fontSize: 11, fontWeight: 700, color: '#00C566',
-                background: 'rgba(0,197,102,0.1)', padding: '4px 10px', borderRadius: 100,
-              }}>All Systems Operational</span>
+            <ChevronDown size={14} color="#000" />
+          </motion.div>
+        </div>
+      </div>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <p style={{ ...bodySmSt, paddingLeft: 56, paddingBottom: 24, maxWidth: 580 }}>{desc}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ── AI Tool Tab (left accordion) ──────────────────────────────────────────────
+function AIToolTab({
+  title,
+  desc,
+  cta,
+  active,
+  onClick,
+}: {
+  title: string
+  desc: string
+  cta: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        borderLeft: `3px solid ${active ? '#166aea' : '#d0d0d0'}`,
+        padding: '20px 24px',
+        cursor: 'pointer',
+        transition: 'border-color 0.2s',
+        marginBottom: 4,
+      }}
+    >
+      <h3 style={{
+        fontFamily: WIX_FONT,
+        fontSize: 'clamp(18px,1.46vw,28px)',
+        fontWeight: 700,
+        color: active ? '#000' : '#a7a8a8',
+        marginBottom: active ? 12 : 0,
+        transition: 'color 0.2s',
+        margin: 0,
+      }}>{title}</h3>
+      <AnimatePresence>
+        {active && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <p style={{ ...bodySmSt, marginTop: 12, marginBottom: 14 }}>{desc}</p>
+            <span style={{
+              fontFamily: WIX_BODY,
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#166aea',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+            }}>
+              {cta} →
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function Home() {
+  const [activeVideoTab, setActiveVideoTab] = useState(0)
+  const [activeAITool, setActiveAITool] = useState(0)
+
+  // ── Data ────────────────────────────────────────────────────────────────────
+
+  const videoTabs = [
+  {
+    num: '1',
+    title: 'Define your brand identity',
+    desc: "Choose the visual style, colors, and typography that represent your business professionally.",
+  },
+  {
+    num: '2',
+    title: 'Explore premium layouts',
+    desc: "Browse modern website structures designed to deliver a seamless and engaging user experience.",
+  },
+  {
+    num: '3',
+    title: 'Refine your business content',
+    desc: 'Update and personalize your website content to perfectly align with your brand and services.',
+  },
+]
+
+const aiTools = [
+  {
+    title: 'Professional content creation',
+    desc: 'Our team crafts clear, engaging, and brand-focused content tailored specifically for your business.',
+    cta: 'Get Free Demo',
+  },
+  {
+    title: 'Custom website sections',
+    desc: "From service showcases to contact forms and portfolios, we design every section to fit your business needs.",
+    cta: 'Get Free Demo',
+  },
+  {
+    title: 'Premium branding & visuals',
+    desc: 'Enhance your online presence with modern visuals, refined branding, and a polished professional look.',
+    cta: 'Get Free Demo',
+  },
+]
+
+const steps = [
+  {
+    num: '1',
+    title: 'Share your requirements',
+    desc: "Tell us about your business, goals, and the type of website you want through our quick consultation process.",
+  },
+  {
+    num: '2',
+    title: 'We craft your website strategy',
+    desc: 'Our team plans your website structure, branding, and overall user experience tailored to your business.',
+  },
+  {
+    num: '3',
+    title: 'Review and refine',
+    desc: 'We work closely with you to adjust layouts, content, and design details until everything feels perfect.',
+  },
+  {
+    num: '4',
+    title: 'Launch with confidence',
+    desc: 'Once finalized, we deliver a premium, business-ready website built to strengthen your online presence.',
+  },
+]
+
+  const [activeStep, setActiveStep] = useState(0)
+
+  const powerCards = [
+  {
+    color: '#faa85e',
+    title: 'Performance & reliability',
+    desc: (
+      <>
+        Your website is optimized for fast performance, smooth user experience,
+        and reliable long-term stability across all devices.
+      </>
+    ),
+  },
+  {
+    color: '#d1e6d1',
+    title: 'Domain & hosting support',
+    desc: (
+      <>
+        Get scalable hosting solutions and a professional custom domain
+        tailored to strengthen your online presence.
+      </>
+    ),
+  },
+  {
+    color: '#8fa3ff',
+    title: 'Business growth solutions',
+    desc: (
+      <>
+        Expand your business with integrated marketing, SEO, analytics,
+        and customer management solutions designed for growth.
+      </>
+    ),
+  },
+]
+
+const faqs = [
+  {
+    q: 'How does Vexa create websites?',
+    a: (
+      <p>
+        Vexa works closely with businesses to understand their goals,
+        branding, and requirements before crafting a premium website
+        tailored to their vision and business needs.
+      </p>
+    ),
+  },
+  {
+    q: 'How do I choose the right website solution?',
+    a: (
+      <p>
+        Choosing the right website depends on your business goals,
+        scalability needs, branding, and customer experience. Vexa
+        focuses on delivering modern, professional, and growth-oriented
+        digital solutions for every business type.
+      </p>
+    ),
+  },
+  {
+    q: 'Why choose Vexa for your website?',
+    a: (
+      <p>
+        Vexa combines premium design, modern technology, and business-focused
+        strategy to create websites that not only look exceptional but also
+        help businesses grow online with confidence.
+      </p>
+    ),
+  },
+  {
+    q: 'Can I customize my website design?',
+    a: (
+      <p>
+        Yes, every website is fully customizable. From layouts and branding
+        to content and functionality, we refine every detail to ensure your
+        website perfectly reflects your business identity.
+      </p>
+    ),
+  },
+  {
+    q: 'How long does it take to build a website?',
+    a: (
+      <p>
+        Timelines depend on the scope and requirements of the project, but
+        our streamlined process ensures your website is delivered efficiently
+        without compromising on quality or performance.
+      </p>
+    ),
+  },
+  {
+    q: 'Will my website be mobile-friendly?',
+    a: (
+      <p>
+        Absolutely. Every website we create is fully responsive and optimized
+        to deliver a seamless experience across desktop, tablet, and mobile devices.
+      </p>
+    ),
+  },
+  {
+    q: 'Will my website support SEO and growth?',
+    a: (
+      <p>
+        Yes, all websites are built with modern SEO practices, performance
+        optimization, and scalable business solutions to help strengthen your
+        online visibility and long-term growth.
+      </p>
+    ),
+  },
+]
+
+  const HERO_VIDEO_THUMB = 'https://cdn.corenexis.com/files/c/2692493720.png'
+  const SECTION_IMG = 'https://static.wixstatic.com/media/0784b1_58ac1f3f9ce24665aff993f7c6902aa5~mv2.jpg'
+
+  return (
+    <>
+      {/* ══════════════════════════════════════════════════════════
+          NAVBAR — Vexa Navbar
+      ══════════════════════════════════════════════════════════ */}
+      <Navbar />
+
+      <main style={{ fontFamily: WIX_FONT, background: '#fff', overflowX: 'hidden', paddingTop: 60 }}>
+
+        {/* ══════════════════════════════════════════════════════════
+            HERO — "AI WEBSITE BUILDER / Experience site creation like never before"
+            White bg · centered label + huge h2 + subtitle + black CTA + note
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{
+          background: '#fff',
+          paddingTop: 'clamp(48px,8vw,120px)',
+          paddingBottom: 'clamp(60px,9vw,140px)',
+          paddingLeft: 24, paddingRight: 24,
+          textAlign: 'center',
+          position: 'relative',
+        }}>
+          <div style={{ maxWidth: 860, margin: '0 auto' }}>
+
+            <motion.p
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.42 }}
+              style={labelSt}
+            >
+              Your Digital Growth Partner
+            </motion.p>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.62, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
+              style={{ ...h1St, marginBottom: 20 }}
+            >
+              Experience site creation like never before
+            </motion.h2>
+
+            <motion.p
+              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.14 }}
+              style={{ ...bodySt, fontSize: 'clamp(16px,1.25vw,24px)', marginBottom: 40 }}
+            >
+              Transform your vision into a premium digital presence.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}
+            >
+              <a
+                href="https://www.wix.com/intro/sg"
+                style={btnBlack}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+              >
+                Get Free Demo
+              </a>
+              <p style={{ fontFamily: WIX_BODY, fontSize: 14, color: '#a7a8a8' }}>
+                ✨Start for free. No credit card required.
+              </p>
+            </motion.div>
+
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            HERO VIDEO — Full-width video player (Wix demo video)
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#1c1d21', position: 'relative' }}>
+          <div style={{
+            maxWidth: '80vw', margin: '0 auto',
+            position: 'relative', cursor: 'pointer',
+          }}>
+            <img
+              src={HERO_VIDEO_THUMB}
+              alt="Wix AI website builder demo"
+              style={{ width: '100%', display: 'block', objectFit: 'cover' }}
+            />
+            <div style={{
+              position: 'absolute', inset: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <div style={{
+                width: 60, height: 60, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                backdropFilter: 'blur(4px)',
+              }}>
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="white">
+                  <path d="M6 4l12 6-12 6V4z" />
+                </svg>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {[
-                'WhatsApp Automation',
-                'AI Customer Support',
-                'Inventory Tracking',
-                'Udhar Management',
-                'Daily Business Reports',
-              ].map((item, i) => (
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            PANEL 1 — "Your ideas go in. Your site comes out."
+            Gradient bg with colored bars · h2 left + video right + CTA
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#fff', padding: 'clamp(54px,7vw,100px) 5vw', borderTop: '1px solid #eaeaea' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+            <div className="wix-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(32px,5vw,80px)', alignItems: 'flex-start' }}>
+
+              <motion.div {...fadeUp(0)}>
+                <h2 style={{ ...h2St, fontSize: 'clamp(28px,5vw,96px)', marginBottom: 20 }}>
+                  Your ideas go in. Your site comes out.
+                </h2>
+                <p style={{ ...bodySt, marginBottom: 36 }}>
+                  Turn your vision into a premium, AI-crafted website designed to elevate your business.
+                </p>
+                <a
+                  href="https://www.wix.com/intro/sg"
+                  style={btnBlack}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                >
+                  Get Free Demo
+                </a>
+              </motion.div>
+
+                            <motion.div {...fadeUp(0.1)} style={{ position: 'relative' }}>
+                <div style={{
+                  background: '#f4f4f4', borderRadius: 16, overflow: 'hidden',
+                  aspectRatio: '1.6/1',    // Thoda bada (was 1.8/1)
+                  position: 'relative',
+                  maxWidth: '520px',
+                  minHeight: '300px',
+                }}>
+                  <img
+                    src="https://static.wixstatic.com/media/dea07e_ed8e9ef4c50b431a9eaa21e1248de325f000.png"
+                    alt="Wix AI website builder tweaks site style"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              </motion.div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            PANEL 2 — "Built for high standards." + Video tabs
+            Gradient/color bg · 3 tabs on left + video on right
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#fff', padding: 'clamp(54px,7vw,100px) 5vw', borderTop: '1px solid #eaeaea' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+            <div className="wix-grid-2col" style={{ display: 'grid', gridTemplateColumns: '47vw 1fr', gap: 0, alignItems: 'flex-start' }}>
+
+              {/* Right: big video (sticky on desktop) */}
+              <motion.div {...fadeUp(0.1)} style={{ order: 1 }}>
+                <div style={{
+                  borderRadius: 16, overflow: 'hidden',
+                  background: '#1c1d21',
+                  aspectRatio: '1.7/1',
+                  minHeight: '280px',
+                  maxWidth: '480px',
+                  marginLeft: 'auto',
+                  marginRight: '0',
+                  transform: 'translateX(30px)',  // Push right
+                }}>
+                  <img
+                    src={[
+                      'https://static.wixstatic.com/media/dea07e_95de6932bfa64d32bfb360191b33b035f000.png',
+                      'https://static.wixstatic.com/media/dea07e_3b384fad4ce9441687c13cc29cd1fc75f000.png',
+                      'https://static.wixstatic.com/media/dea07e_935a4d9263b643ac99b2c2eaa95dd97bf000.png',
+                    ][activeVideoTab]}
+                    alt={videoTabs[activeVideoTab].title}
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    key={activeVideoTab}
+                  />
+                </div>
+              </motion.div>
+
+              {/* Left: text + tabs */}
+              <motion.div {...fadeUp(0)} style={{ paddingLeft: 'clamp(0px,3vw,60px)', order: 0 }}>
+                <h2 style={{ ...h2St, fontSize: 'clamp(28px,5vw,96px)', marginBottom: 16 }}>
+                  Built for high standards.
+                </h2>
+                <p style={{ ...bodySt, marginBottom: 36 }}>
+                  Refine every detail — from design and layouts to content and branding — until your website perfectly reflects your vision.
+                </p>
+                <a
+                  href="https://www.wix.com/intro/sg"
+                  style={{ ...btnBlack, marginBottom: 40 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                >
+                  Get Free Demo
+                </a>
+
+                <div style={{ borderTop: '1px solid #c8c8c8', marginTop: 0 }}>
+                  {videoTabs.map((tab, i) => (
+                    <VideoTab
+                      key={tab.title}
+                      num={tab.num}
+                      title={tab.title}
+                      desc={tab.desc}
+                      open={activeVideoTab === i}
+                      onClick={() => setActiveVideoTab(i)}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            PANEL 3 — "More than just a good-looking site."
+            White bg · text left + video right
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#fff', padding: 'clamp(54px,7vw,140px) 5vw', borderTop: '1px solid #eaeaea' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+            <div className="wix-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(32px,5vw,80px)', alignItems: 'center' }}>
+
+              <motion.div {...fadeUp(0)}>
+                <h2 style={{ ...h2St, fontSize: 'clamp(28px,5vw,96px)', marginBottom: 20 }}>
+                  More than just a good-looking site.
+                </h2>
+                <p style={{ ...bodySt, marginBottom: 32 }}>
+                  With integrated business solutions like booking systems, online stores,
+                  portfolio showcases, contact management, and more — your website is built
+                  to support real business growth from day one.
+                </p>
+                <a
+                  href="https://www.wix.com/intro/sg"
+                  style={btnBlack}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                >
+                  Get Free Demo
+                </a>
+              </motion.div>
+
+              <motion.div {...fadeUp(0.1)}>
+                <div style={{
+                  borderRadius: 16, overflow: 'hidden',
+                  background: '#f4f4f4',
+                  aspectRatio: '2.06/1',
+                  transform: 'scale(1.15)',
+                  transformOrigin: 'center center',
+                }}>
+                  <img
+                    src="https://static.wixstatic.com/media/dea07e_cf35b61a85754bae9063ea144c5a4953f000.png"
+                    alt="Wix AI adds business functions"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+              </motion.div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            AI TOOLS — "Keep customizing your website with intuitive AI tools."
+            Gray bg · 3-tab accordion left + video right
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#f4f4f4', padding: 'clamp(54px,7vw,100px) 5vw' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+
+            <div className="wix-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(32px,5vw,80px)', alignItems: 'flex-start' }}>
+
+              <motion.div {...fadeUp(0)}>
+                <h2 style={{ ...h2St, fontSize: 'clamp(24px,3.33vw,64px)', marginBottom: 20 }}>
+                  Refine your website effortlessly to match your business vision.
+                </h2>
+                <p style={{ ...bodySmSt, marginBottom: 40 }}>
+                  After your website is created, our team helps refine every detail to ensure the design, content, and overall experience perfectly represent your brand.
+                </p>
+
+                {aiTools.map((tool, i) => (
+                  <AIToolTab
+                    key={tool.title}
+                    title={tool.title}
+                    desc={tool.desc}
+                    cta={tool.cta}
+                    active={activeAITool === i}
+                    onClick={() => setActiveAITool(i)}
+                  />
+                ))}
+              </motion.div>
+
+              <motion.div
+                key={activeAITool}
+                initial={{ opacity: 0, x: 18 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3 }}
+                style={{ position: 'sticky', top: '18vw' }}
+              >
+                <div style={{
+                  background: ['#d8e2ec', '#8fa3ff', '#d1e6d1'][activeAITool],
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                  padding: 28,
+                  aspectRatio: '1.5/1',
+                  display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                }}>
+                  <h3 style={{ ...h3St, fontSize: 'clamp(18px,2.08vw,40px)', marginBottom: 12, color: '#000' }}>
+                    {aiTools[activeAITool].title}
+                  </h3>
+                  <p style={{ ...bodySmSt, fontSize: 'clamp(14px,1.04vw,20px)', color: '#1c1d21' }}>
+                    {aiTools[activeAITool].desc}
+                  </p>
+                  <div style={{ marginTop: 16 }}>
+                    <a
+                      href="https://www.wix.com/intro/sg"
+                      style={{ ...btnBlack, fontSize: 'clamp(12px,0.94vw,18px)', height: 42 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                    >
+                      Get Free Demo
+                    </a>
+                  </div>
+                </div>
+              </motion.div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            HOW TO — "How to create a website with AI for free."
+            Gray bg · h2 + desc + CTA + image left · 4 expandable steps right
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#f4f4f4', padding: 'clamp(54px,7vw,100px) 5vw', borderTop: '1px solid #c8c8c8' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+            <div className="wix-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'clamp(32px,5vw,80px)', alignItems: 'flex-start' }}>
+
+              {/* Left: heading + image */}
+              <motion.div {...fadeUp(0)}>
+                <h2 style={{ ...h2St, fontSize: 'clamp(24px,3.33vw,64px)', marginBottom: 20 }}>
+                  How to create a professional website for your business.
+                </h2>
+                <p style={{ ...bodySmSt, marginBottom: 32 }}>
+                  Build and launch your professional website in 4 simple steps.
+                </p>
+                <a
+                  href="https://www.wix.com/intro/sg"
+                  style={btnBlack}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                >
+                  Get Free Demo
+                </a>
+
+                {/* Image card */}
+                <div style={{ marginTop: 32, borderRadius: 16, overflow: 'hidden', background: '#8fa3ff' }}>
+                  <img
+                    src={SECTION_IMG}
+                    alt="Wix AI website builder creates a Matcha eComm store"
+                    style={{ width: '100%', display: 'block', objectFit: 'cover' }}
+                  />
+                </div>
+              </motion.div>
+
+              {/* Right: 4 expandable steps */}
+              <motion.div {...fadeUp(0.1)}>
+                <div style={{ borderTop: '1px solid #c8c8c8' }}>
+                  {steps.map((step, i) => (
+                    <VideoTab
+                      key={step.num}
+                      num={step.num}
+                      title={step.title}
+                      desc={step.desc}
+                      open={activeStep === i}
+                      onClick={() => setActiveStep(activeStep === i ? -1 : i)}
+                    />
+                  ))}
+                </div>
+              </motion.div>
+
+            </div>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            POWER CARDS — "Your sites come packed with power."
+            White bg · h2 left + CTA right + 3 colored feature cards
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#fff', padding: 'clamp(54px,7vw,100px) 5vw', borderTop: '1px solid #eaeaea' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+
+            <motion.div {...fadeUp(0)} style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', flexWrap: 'wrap', gap: 24, marginBottom: 48,
+            }}>
+              <h2 style={{ ...h2St, fontSize: 'clamp(24px,5vw,96px)', maxWidth: 560, margin: 0 }}>
+                Your sites come packed with power.
+              </h2>
+              <a
+                href="https://www.wix.com/intro/sg"
+                style={btnBlack}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+              >
+                Get Free Demo
+              </a>
+            </motion.div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }} className="wix-grid-3col">
+              {powerCards.map((card, i) => (
                 <motion.div
-                  key={item}
-                  initial={{ opacity: 0, x: 16 }} whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }} transition={{ delay: 0.1 + i * 0.09 }}
+                  key={card.title}
+                  {...fadeUp(i * 0.08)}
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: '#fff', border: '1px solid #E4E8EF',
-                    borderRadius: 12, padding: '13px 16px',
+                    background: card.color,
+                    borderRadius: 16,
+                    padding: 'clamp(28px,2.1vw,40px) clamp(20px,1.6vw,30px) clamp(24px,1.9vw,36px)',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    minHeight: 'clamp(160px,16vw,300px)',
                   }}
                 >
-                  <span style={{ fontSize: 14, fontWeight: 500, color: '#0A0A0A' }}>{item}</span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: '#00C566' }}>
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%', background: '#00C566', display: 'inline-block',
-                      boxShadow: '0 0 0 3px rgba(0,197,102,0.2)',
-                      animation: 'pulse 2s infinite',
-                    }} />
-                    Active
-                  </span>
+                  <h3 style={{
+                    fontFamily: WIX_FONT,
+                    fontSize: 'clamp(18px,2.6vw,50px)',
+                    fontWeight: 700, color: '#000',
+                    lineHeight: 1.2, marginBottom: 16,
+                  }}>
+                    {card.title}
+                  </h3>
+                  <p style={{ ...bodySmSt, fontSize: 'clamp(13px,1.04vw,20px)' }}>{card.desc}</p>
                 </motion.div>
               ))}
             </div>
-          </motion.div>
-        </div>
-      </section>
 
-      {/* ── CTA BANNER ────────────────────────────────────────────── */}
-      <section
-        className="relative overflow-hidden"
-        style={{
-          background: 'linear-gradient(135deg, #0A0A0A 0%, #0F1923 100%)',
-          padding: 'clamp(60px,8vw,96px) 24px',
-        }}
-      >
-        {/* Subtle canvas bg */}
-        <canvas
-          ref={useRef<HTMLCanvasElement>(null)}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.15, pointerEvents: 'none' }}
-        />
-        {/* Decorative circle */}
-        <div style={{
-          position: 'absolute', top: '50%', right: '-80px', transform: 'translateY(-50%)',
-          width: 360, height: 360, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(26,107,255,0.18) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
+          </div>
+        </section>
 
-        <div className="relative max-w-3xl mx-auto text-center">
-          <motion.h2
-            {...fadeUp(0)}
-            style={{ fontSize: 'clamp(28px, 4.5vw, 48px)', fontWeight: 800, lineHeight: 1.08, letterSpacing: '-0.03em', color: '#fff', marginBottom: 18 }}
-          >
-            Ready to automate<br />your business?
-          </motion.h2>
-          <motion.p
-            {...fadeUp(0.08)}
-            style={{ fontSize: 17, color: '#8A97A6', lineHeight: 1.7, marginBottom: 36, maxWidth: 420, margin: '0 auto 36px' }}
-          >
-            Get a free 30-minute consultation. We'll show you exactly what can be automated in your business — no obligations.
-          </motion.p>
-          <motion.div {...fadeUp(0.14)} style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-            <Link
-              to="/contact"
+        {/* ══════════════════════════════════════════════════════════
+            SUPPORT — "We're here for you 24/7."
+            Black bg · h2 white + blue "Go to Help Center" + 2 help cards
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#1c1d21', padding: 'clamp(54px,7vw,100px) 5vw' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+
+            <motion.div {...fadeUp(0)} style={{
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', flexWrap: 'wrap',
+              gap: 24, marginBottom: 48,
+            }}>
+              <h2 style={{ ...h2St, fontSize: 'clamp(24px,5vw,96px)', color: '#fff', margin: 0 }}>
+                We're here for you 24/7.
+              </h2>
+              <a
+                href="https://support.wix.com/en"
+                style={btnBlueSt}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#2d83ff')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#166aea')}
+              >
+                Go to Help Center
+              </a>
+            </motion.div>
+
+            <div className="wix-grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {[
+                {
+                  bg: '#d8e2ec',
+                  title: 'Find answers',
+                  desc: 'Visit our Help Center for detailed articles and tutorials.',
+                  href: 'https://support.wix.com/en',
+                },
+                {
+                  bg: '#8fa3ff',
+                  title: 'Contact us',
+                  desc: 'Chat with us for real-time support or schedule a call with our experts.',
+                  href: 'https://www.wix.com/contact',
+                },
+              ].map((card, i) => (
+                <motion.div
+                  key={card.title}
+                  {...fadeUp(i * 0.08)}
+                  style={{
+                    background: card.bg,
+                    borderRadius: 16,
+                    padding: 'clamp(32px,2.1vw,40px) clamp(24px,1.8vw,36px) clamp(36px,2.5vw,48px)',
+                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                    minHeight: 'clamp(140px,14.5vw,280px)',
+                  }}
+                >
+                  <div>
+                    <h3 style={{
+                      fontFamily: WIX_FONT,
+                      fontSize: 'clamp(20px,2.9vw,56px)',
+                      fontWeight: 700, color: '#000', lineHeight: 1.2,
+                      marginBottom: 16,
+                    }}>
+                      {card.title}
+                    </h3>
+                    <p style={{ ...bodySmSt, fontSize: 'clamp(13px,1.04vw,20px)' }}>{card.desc}</p>
+                  </div>
+                  <a
+                    href={card.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ ...btnBlack, marginTop: 16, alignSelf: 'flex-start', fontSize: 'clamp(12px,0.94vw,18px)', height: 42 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                  >
+                    {card.title === 'Find answers' ? 'Go to Help Center' : 'Contact us'}
+                  </a>
+                </motion.div>
+              ))}
+            </div>
+
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            FAQ — "AI Website Builder FAQ"
+            White bg · h2 + accordion items
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{ background: '#fff', padding: 'clamp(54px,7vw,100px) 5vw', borderTop: '1px solid #eaeaea' }}>
+          <div style={{ maxWidth: 980, margin: '0 auto' }}>
+
+            <motion.h2 {...fadeUp(0)} style={{ ...h2St, fontSize: 'clamp(24px,5vw,96px)', marginBottom: 48 }}>
+              AI Website Builder FAQ
+            </motion.h2>
+
+            <motion.div {...fadeUp(0.06)} style={{ borderTop: '1px solid #eaeaea' }}>
+              {faqs.map((faq) => (
+                <FAQItem key={faq.q} q={faq.q} a={faq.a} />
+              ))}
+            </motion.div>
+
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════
+            FOOTER CTA — "Now that's how you create a site."
+            Gradient bg · huge centered h2 + small note below + CTA button
+        ══════════════════════════════════════════════════════════ */}
+        <section style={{
+          background: 'radial-gradient(circle at 99% 0%, rgba(94,255,255,0.6) 0%, 26%, rgba(94,255,255,0) 70%), radial-gradient(circle at 58% 53%, rgba(53,89,255,0.6) 0%, 42%, rgba(53,89,255,0) 73%), radial-gradient(circle at 49% 50%, #8FA3FF 0%, 100%, rgba(143,163,255,0) 100%)',
+          padding: 'clamp(80px,11vw,210px) clamp(48px,8vw,150px) clamp(76px,10vw,192px)',
+          textAlign: 'center',
+          borderTop: '1px solid #eaeaea',
+        }}>
+          <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+
+            <motion.div
+              {...fadeUp(0)}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '14px 32px', background: '#1A6BFF', color: '#fff',
-                fontWeight: 700, borderRadius: 100, fontSize: 15, textDecoration: 'none',
-                transition: 'opacity 0.2s',
+                background: '#fff',
+                borderRadius: 'clamp(16px,2.1vw,80px)',
+                padding: 'clamp(48px,5.5vw,105px) clamp(40px,8vw,150px) clamp(60px,6.5vw,125px)',
+                textAlign: 'center',
               }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
-              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
-              Get Started for Free <ArrowRight size={15} />
-            </Link>
-            <Link
-              to="/services"
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                padding: '14px 32px', color: '#fff', fontWeight: 600,
-                borderRadius: 100, fontSize: 15, textDecoration: 'none',
-                border: '1.5px solid rgba(255,255,255,0.18)',
-                transition: 'border-color 0.2s',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)')}
-            >
-              Explore Services
-            </Link>
-          </motion.div>
-          <motion.p {...fadeUp(0.2)} style={{ marginTop: 20, fontSize: 13, color: '#4B5A6B' }}>
-            No credit card required · Setup in 48 hours
-          </motion.p>
-        </div>
-      </section>
+              <h2 style={{
+                fontFamily: WIX_FONT,
+                fontSize: 'clamp(36px,6.25vw,120px)',
+                fontWeight: 700,
+                lineHeight: 1.05,
+                letterSpacing: '-0.02em',
+                color: '#000',
+                marginBottom: 44,
+              }}>
+                That’s how modern websites are built.
+              </h2>
 
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-        @keyframes pulse {
-          0%, 100% { box-shadow: 0 0 0 3px rgba(0,197,102,0.2); }
-          50% { box-shadow: 0 0 0 5px rgba(0,197,102,0.08); }
-        }
-      `}</style>
-    </main>
+              <motion.div {...fadeUp(0.08)}>
+                <a
+                  href="https://www.wix.com/intro/sg"
+                  style={{ ...btnBlack, fontSize: 'clamp(14px,0.94vw,18px)', height: 54 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#333')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#000')}
+                >
+                  Get Free Demo
+                </a>
+              </motion.div>
+
+              <motion.p {...fadeUp(0.14)} style={{ fontFamily: WIX_BODY, fontSize: 'clamp(12px,0.73vw,14px)', color: '#a7a8a8', marginTop: 20 }}>
+                ✨Start for free. No credit card required.
+              </motion.p>
+            </motion.div>
+
+          </div>
+        </section>
+
+        {/* Global responsive styles */}
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+          * { box-sizing: border-box; }
+
+          @media (max-width: 767px) {
+            .wix-grid-2col {
+              grid-template-columns: 1fr !important;
+            }
+            .wix-grid-3col {
+              grid-template-columns: 1fr !important;
+            }
+          }
+
+          @media (max-width: 1199px) {
+            .wix-grid-2col > div:nth-child(2) {
+              order: -1;
+            }
+          }
+        `}</style>
+
+      </main>
+
+      {/* ══════════════════════════════════════════════════════════
+          FOOTER — Vexa Footer
+      ══════════════════════════════════════════════════════════ */}
+   
+    </>
   )
 }

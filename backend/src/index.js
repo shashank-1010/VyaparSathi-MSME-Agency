@@ -60,5 +60,5 @@ app.use((err, req, res, _next) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`🚀 VyaparSathi API running on port ${PORT}`)
+  console.log(`🚀 Vexa API running on port ${PORT}`)
 })

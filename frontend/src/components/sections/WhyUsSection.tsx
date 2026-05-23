@@ -24,7 +24,7 @@ export default function WhyUsSection() {
         >
           <h2 className="text-4xl lg:text-5xl font-bold text-slate-900 mb-4 tracking-tight" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
             Why Choose{' '}
-            <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">VyaparSathi</span>?
+            <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">Vexa</span>?
           </h2>
           <p className="text-slate-500 max-w-xl mx-auto text-lg">
             We understand the unique challenges of Indian businesses and build solutions that actually work for you.
