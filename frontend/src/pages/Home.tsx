@@ -499,7 +499,7 @@ const faqs = [
 ]
 
   const HERO_VIDEO_THUMB = 'https://cdn.corenexis.com/files/c/2692493720.png'
-  const SECTION_IMG = 'https://static.wixstatic.com/media/0784b1_58ac1f3f9ce24665aff993f7c6902aa5~mv2.jpg'
+  const SECTION_IMG = 'https://cdn.corenexis.com/files/c/5276278720.png'
 
   return (
     <>
@@ -667,9 +667,9 @@ const faqs = [
                 }}>
                   <img
                     src={[
-                      'https://static.wixstatic.com/media/dea07e_95de6932bfa64d32bfb360191b33b035f000.png',
-                      'https://static.wixstatic.com/media/dea07e_3b384fad4ce9441687c13cc29cd1fc75f000.png',
-                      'https://static.wixstatic.com/media/dea07e_935a4d9263b643ac99b2c2eaa95dd97bf000.png',
+                      'https://cdn.corenexis.com/files/c/3588321720.png',
+                      'https://cdn.corenexis.com/files/c/7486675720.png',
+                      'https://cdn.corenexis.com/files/c/4845883720.png',
                     ][activeVideoTab]}
                     alt={videoTabs[activeVideoTab].title}
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
@@ -749,7 +749,7 @@ const faqs = [
                   transformOrigin: 'center center',
                 }}>
                   <img
-                    src="https://static.wixstatic.com/media/dea07e_cf35b61a85754bae9063ea144c5a4953f000.png"
+                    src="https://cdn.corenexis.com/files/c/4364965720.png"
                     alt="Wix AI adds business functions"
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />
