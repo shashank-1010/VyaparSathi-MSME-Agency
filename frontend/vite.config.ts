@@ -7,6 +7,8 @@ export default defineConfig({
     allowedHosts: [
       'localhost',
       'ahead-lamp-jean-recipe.trycloudflare.com',
+      '.onrender.com',  // Allow all Render domains
+      '.trycloudflare.com',  // Cloudflare tunnel
     ],
     proxy: {
       '/api': {
@@ -14,5 +16,9 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
   }
 })
